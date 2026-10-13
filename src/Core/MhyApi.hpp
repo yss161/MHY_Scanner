@@ -82,6 +82,108 @@ inline std::string GetLoginQrcodeUrl(const GameType type = loginType)
     return qrcodeUrl;
 }
 
+// ---------- HoYoPlay 扫码登录 ----------
+// 米游社 APP 扫码显示"登录电脑端"，确认后 queryQRLoginStatus 直接返回 stoken。
+// 旧的 hk4e panda 流程确认后需调 getTokenByGameToken，该接口已对非 HYP 客户端返回 -5300。
+
+static const std::string hyp_device_id{
+    []() {
+        // 64 位 hex 设备 ID（两个去连字符 UUID 拼接，与 HoYoPlay 客户端格式一致）
+        std::string id;
+        for (int i = 0; i < 2; ++i)
+        {
+            const std::string uuid = CreateUUID::CreateUUID4();
+            for (const char c : uuid)
+            {
+                if (c != '-')
+                    id += c;
+            }
+        }
+        return id;
+    }() };
+
+inline cpr::Header GetHypQrCodeHeader()
+{
+    return {
+        { "Content-Type", "application/json" },
+        { "User-Agent", "HYPContainer/1.3.3.182" },
+        { "x-rpc-app_id", "ddxf5dufpuyo" },
+        { "x-rpc-client_type", "3" },
+        { "x-rpc-device_id", hyp_device_id },
+    };
+}
+
+// 创建 HYP 扫码登录二维码，返回 {url, ticket}
+inline std::tuple<std::string, std::string> CreateQRLogin()
+{
+    const auto response = cpr::Post(
+        cpr::Url{ api::mhy::passport::create_qr_login },
+        cpr::Body{ "{}" },
+        GetHypQrCodeHeader());
+
+    const auto j = nlohmann::json::parse(response.text);
+    if (j.value("retcode", -1) != 0)
+        return { {}, {} };
+    return { j["data"]["url"].get<std::string>(), j["data"]["ticket"].get<std::string>() };
+}
+
+// 轮询 HYP 扫码状态，Confirmed 时返回 {state, aid, mid, stoken}
+inline std::tuple<LoginQRCodeState, std::string, std::string, std::string> QueryQRLoginStatus(
+    const std::string_view ticket)
+{
+    const auto response = cpr::Post(
+        cpr::Url{ api::mhy::passport::query_qr_login_status },
+        cpr::Body{ nlohmann::json{ { "ticket", ticket } }.dump() },
+        GetHypQrCodeHeader());
+
+    const auto j = nlohmann::json::parse(response.text);
+    if (j.value("retcode", -1) != 0)
+        return { LoginQRCodeState::Expired, {}, {}, {} };
+
+    const auto& data = j["data"];
+    const std::string status = data.value("status", "Created");
+
+    if (status == "Confirmed")
+    {
+        std::string stoken;
+        if (data.contains("tokens") && data["tokens"].is_array())
+        {
+            for (const auto& token : data["tokens"])
+            {
+                const std::string name = token.value("name", "");
+                if (name == "stoken" || name == "stoken_v2")
+                {
+                    stoken = token["token"].get<std::string>();
+                    break;
+                }
+            }
+        }
+        if (stoken.empty())
+            return { LoginQRCodeState::Expired, {}, {}, {} };
+
+        std::string aid;
+        std::string mid;
+        if (data.contains("user_info") && data["user_info"].is_object())
+        {
+            const auto& user = data["user_info"];
+            if (user.contains("aid"))
+            {
+                if (user["aid"].is_string())
+                    aid = user["aid"].get<std::string>();
+                else if (user["aid"].is_number())
+                    aid = std::to_string(user["aid"].get<long long>());
+            }
+            if (user.contains("mid") && user["mid"].is_string())
+                mid = user["mid"].get<std::string>();
+        }
+        return { LoginQRCodeState::Confirmed, aid, mid, stoken };
+    }
+
+    if (status == "Scanned")
+        return { LoginQRCodeState::Scanned, {}, {}, {} };
+    return { LoginQRCodeState::Init, {}, {}, {} };
+}
+
 inline std::tuple<LoginQRCodeState, std::string, std::string> GetQRCodeState(
     const std::string_view ticket,
     const GameType type = loginType)
@@ -126,12 +228,23 @@ inline std::tuple<LoginQRCodeState, std::string, std::string> GetQRCodeState(
 
 inline std::string getMysUserName(const std::string_view uid)
 {
-    static constexpr std::string_view url = api::mhy::mys::userinfo;
-    const auto response = cpr::Get(
-        cpr::Url{ std::format("{}?uid={}", url, uid) });
+    try
+    {
+        static constexpr std::string_view url = api::mhy::mys::userinfo;
+        const auto response = cpr::Get(
+            cpr::Url{ std::format("{}?uid={}", url, uid) });
 
-    const auto data = nlohmann::json::parse(response.text);
-    return data["data"]["user_info"]["nickname"].get<std::string>();
+        const auto data = nlohmann::json::parse(response.text);
+        if (data.value("retcode", -1) == 0 && data.contains("data") && data["data"].contains("user_info"))
+        {
+            return data["data"]["user_info"]["nickname"].get<std::string>();
+        }
+    }
+    catch (...)
+    {
+    }
+    // 查询失败时用 uid 兜底，避免中断登录流程
+    return std::string{ uid };
 }
 
 inline std::tuple<int, std::string, std::string> GetStokenByGameToken(

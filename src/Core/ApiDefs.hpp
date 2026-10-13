@@ -116,6 +116,9 @@ namespace passport
 constexpr compile_string base{ "https://passport-api.mihoyo.com" };
 constexpr auto create_captcha = base + compile_string{ "/account/ma-cn-verifier/verifier/createLoginCaptcha" };
 constexpr auto login_by_mobile_captcha = base + compile_string{ "/account/ma-cn-passport/app/loginByMobileCaptcha" };
+// HoYoPlay 扫码登录（米游社 APP 扫码显示"登录电脑端"，确认后直接返回 stoken）
+constexpr auto create_qr_login = base + compile_string{ "/account/ma-cn-passport/app/createQRLogin" };
+constexpr auto query_qr_login_status = base + compile_string{ "/account/ma-cn-passport/app/queryQRLoginStatus" };
 }
 
 namespace mys

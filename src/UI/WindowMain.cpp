@@ -47,6 +47,13 @@ WindowMain::WindowMain(QWidget* parent) :
         failure();
         pBtStop();
     });
+    connect(this, &WindowMain::GameTokenError, this, [&]() {
+        QMessageBox::information(this, "提示",
+            "账号凭证有效，但米哈游接口已不再支持换取游戏登录凭证。\n"
+            "监视屏幕/直播间（官服）功能暂不可用，B服账号不受影响。\n"
+            "请勿反复重新添加账号。", QMessageBox::Yes);
+        pBtStop();
+    });
     connect(this, &WindowMain::StartScanLive, this, [&]() {
         ui.pBtStream->setText("监视直播中");
         ui.pBtStream->setEnabled(true);
@@ -234,7 +241,7 @@ void WindowMain::pBtstartScreen(bool clicked)
             auto [code, game_token] = GetGameTokenByStoken(stoken, mid);
             if (code != 0)
             {
-                emit AccountError();
+                emit GameTokenError();
                 return;
             }
             t1.setServerType(ServerType::Official);
@@ -297,7 +304,7 @@ void WindowMain::pBtStream(bool clicked)
             auto [code, game_token] = GetGameTokenByStoken(stoken, mid);
             if (code != 0)
             {
-                emit AccountError();
+                emit GameTokenError();
                 return;
             }
             t2.setServerType(ServerType::Official);

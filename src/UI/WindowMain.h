@@ -77,6 +77,7 @@ public Q_SLOTS:
 Q_SIGNALS:
     void StopScanner();
     void AccountError();
+    void GameTokenError();
     void LiveStreamLinkError(LiveStreamStatus status);
     void AccountNotSelected();
     void StartScanScreen();

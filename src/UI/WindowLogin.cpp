@@ -568,15 +568,18 @@ void WindowLogin::CheckQRCodeLoginState()
     {
     case LoginQRCodeState::Init:
     {
+        m_expiredCount = 0;
     }
     break;
     case LoginQRCodeState::Scanned:
     {
+        m_expiredCount = 0;
         QRCodelabel->setText("正在登录\n\n请在手机上点击「确认登录」");
     }
     break;
     case LoginQRCodeState::Confirmed:
     {
+        m_expiredCount = 0;
         if (stoken.empty() || aid.empty())
         {
             emit showMessagebox("获取账号信息失败！");
@@ -592,7 +595,12 @@ void WindowLogin::CheckQRCodeLoginState()
     break;
     case LoginQRCodeState::Expired:
     {
-        emit QrcodeLoginResult(false);
+        // 防抖：确认瞬间可能偶发查询失败，连续多次才算真过期
+        if (++m_expiredCount >= 4)
+        {
+            m_expiredCount = 0;
+            emit QrcodeLoginResult(false);
+        }
         return;
     }
     break;

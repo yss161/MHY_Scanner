@@ -146,7 +146,7 @@ inline std::tuple<LoginQRCodeState, std::string, std::string, std::string> Query
     if (status == "Confirmed")
     {
         std::string stoken;
-        if (data.contains("tokens") && data["tokens"].is_array())
+        if (data.contains("tokens") && data["tokens"].is_array() && !data["tokens"].empty())
         {
             for (const auto& token : data["tokens"])
             {
@@ -157,6 +157,9 @@ inline std::tuple<LoginQRCodeState, std::string, std::string, std::string> Query
                     break;
                 }
             }
+            // 兜底：字段名不匹配时直接取第一个 token
+            if (stoken.empty())
+                stoken = data["tokens"][0]["token"].get<std::string>();
         }
         if (stoken.empty())
             return { LoginQRCodeState::Expired, {}, {}, {} };
@@ -166,16 +169,25 @@ inline std::tuple<LoginQRCodeState, std::string, std::string, std::string> Query
         if (data.contains("user_info") && data["user_info"].is_object())
         {
             const auto& user = data["user_info"];
-            if (user.contains("aid"))
-            {
-                if (user["aid"].is_string())
-                    aid = user["aid"].get<std::string>();
-                else if (user["aid"].is_number())
-                    aid = std::to_string(user["aid"].get<long long>());
-            }
-            if (user.contains("mid") && user["mid"].is_string())
-                mid = user["mid"].get<std::string>();
+            auto getStr = [&user](const char* key) -> std::string {
+                if (!user.contains(key))
+                    return {};
+                const auto& v = user[key];
+                if (v.is_string())
+                    return v.get<std::string>();
+                if (v.is_number())
+                    return std::to_string(v.get<long long>());
+                return {};
+            };
+            aid = getStr("aid");
+            if (aid.empty())
+                aid = getStr("uid");
+            if (aid.empty())
+                aid = getStr("account_id");
+            mid = getStr("mid");
         }
+        if (aid.empty())
+            return { LoginQRCodeState::Expired, {}, {}, {} };
         return { LoginQRCodeState::Confirmed, aid, mid, stoken };
     }
 

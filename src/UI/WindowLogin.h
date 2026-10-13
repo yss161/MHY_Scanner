@@ -78,6 +78,7 @@ private:
     QLabel* Prompt{};
     QTimer* QrcodeTimer;
     std::string ticket;
+    int m_expiredCount{ 0 };
     std::atomic_bool AllowDrawQRCode{};
 
     void InitTabs2();

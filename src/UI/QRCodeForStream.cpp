@@ -293,8 +293,8 @@ auto QRCodeForStream::init() -> bool
     }
     if (m_chaseFrame.load())
     {
-        // 追帧：无缓冲 + 低延迟，尽可能追到直播最新帧
-        pAVFormatContext->flags |= AVFMT_FLAG_NOBUFFER | AVFMT_FLAG_LOW_DELAY;
+        // 追帧：无缓冲 + 零最大延迟，尽可能追到直播最新帧
+        pAVFormatContext->flags |= AVFMT_FLAG_NOBUFFER;
         pAVFormatContext->max_delay = 0;
     }
     if (avformat_find_stream_info(pAVFormatContext, NULL) < 0)

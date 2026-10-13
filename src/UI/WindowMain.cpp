@@ -675,8 +675,12 @@ void WindowMain::configInitUpdate()
         // 屏幕检测区域
         if (userinfo.contains("screen_region") && userinfo["screen_region"].is_object())
         {
-            const auto& r = userinfo["screen_region"];
-            m_screenRegion = QRect(r.value("x", 0).get<int>(), r.value("y", 0).get<int>(), r.value("w", 0).get<int>(), r.value("h", 0).get<int>());
+            const nlohmann::json& r = userinfo["screen_region"];
+            const int rx = r.value("x", 0);
+            const int ry = r.value("y", 0);
+            const int rw = r.value("w", 0);
+            const int rh = r.value("h", 0);
+            m_screenRegion = QRect(rx, ry, rw, rh);
             t1.setRegion(m_screenRegion);
         }
     }

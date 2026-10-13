@@ -18,7 +18,7 @@
 #include "TimeStamp.hpp"
 
 static const std::string device_id{ CreateUUID::CreateUUID4() };
-static GameType loginType{ GameType::PlatformApp };
+static GameType loginType{ GameType::Genshin };
 
 [[nodiscard]] inline std::string DataSignAlgorithmVersionGen1()
 {
